@@ -1,5 +1,5 @@
-import { Card, Upload, Typography, Button } from 'antd'
-import { UploadOutlined, InboxOutlined } from '@ant-design/icons'
+import { Card, Upload, Typography } from 'antd'
+import { InboxOutlined } from '@ant-design/icons'
 import type { WidgetProps } from './types'
 
 const { Title, Text, Paragraph } = Typography
@@ -7,9 +7,9 @@ const { Title, Text, Paragraph } = Typography
 export default function FileUploaderWidget({ props }: WidgetProps) {
     return (
         <Card>
-            {props?.title && (
+            {props?.title != null && String(props.title) !== '' ? (
                 <Title level={5} style={{ marginBottom: 12 }}>{String(props.title)}</Title>
-            )}
+            ) : null}
             <Upload.Dragger
                 beforeUpload={() => false}
                 multiple

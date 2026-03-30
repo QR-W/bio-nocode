@@ -2,15 +2,15 @@ import { useEffect } from 'react'
 import {
     Form, Input, InputNumber, Select,
     Slider, Switch, Typography, Divider,
-    Button, Empty, Tabs,
+    Empty,
 } from 'antd'
 import type {
-    AppConfig, ComponentConfig, PageConfig,
+    AppConfig, ComponentConfig,
     FieldDef, FieldInputStyle,
 } from '../../types/AppConfig'
 import { useEditorStore } from './useEditorStore'
 
-const { Text, Title } = Typography
+const { Title } = Typography
 
 const SPAN_OPTIONS = [
     { label: '整行（24）', value: 24 },

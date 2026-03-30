@@ -109,7 +109,7 @@ export default function AppBuilderPage() {
 
       // 清除 LLM 可能生成的密码
       if (!currentConfig) {
-        delete (merged as Record<string, unknown>).password
+        delete (merged as unknown as Record<string, unknown>).password
       }
 
       setCurrentConfig(merged)

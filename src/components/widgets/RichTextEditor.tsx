@@ -31,11 +31,11 @@ export default function RichTextEditorWidget({ props }: WidgetProps) {
 
     return (
         <Card>
-            {props?.title && (
+            {props?.title != null && String(props.title) !== '' ? (
                 <Title level={5} style={{ marginBottom: 12 }}>
                     {String(props.title)}
                 </Title>
-            )}
+            ) : null}
 
             <Input.TextArea
                 value={content}

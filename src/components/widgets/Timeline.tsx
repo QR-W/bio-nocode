@@ -1,8 +1,8 @@
-import { Card, Timeline as AntTimeline, Typography, Tag, Empty } from 'antd'
+import { Card, Timeline as AntTimeline, Typography, Empty } from 'antd'
 import { ClockCircleOutlined } from '@ant-design/icons'
 import type { WidgetProps } from './types'
 
-const { Title, Text } = Typography
+const { Text } = Typography
 
 export default function TimelineWidget({ config, records, props }: WidgetProps) {
     if (records.length === 0) {

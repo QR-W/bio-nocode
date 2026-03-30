@@ -9,11 +9,11 @@ export default function DataFormWidget({ config, onSubmit, props }: WidgetProps)
 
     return (
         <Card style={{ maxWidth: 680 }}>
-            {props?.title && (
+            {props?.title != null && String(props.title) !== '' ? (
                 <Title level={5} style={{ marginBottom: 4 }}>
                     {String(props.title)}
                 </Title>
-            )}
+            ) : null}
             <Text type="secondary" style={{ display: 'block', marginBottom: 20, fontSize: 13 }}>
                 带 * 为必填项
             </Text>

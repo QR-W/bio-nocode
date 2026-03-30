@@ -1,7 +1,7 @@
-import { Card, Row, Col, Statistic, Typography, Button } from 'antd'
+import { Card, Row, Col, Statistic, Typography } from 'antd'
 import {
     FormOutlined, TableOutlined,
-    BarChartOutlined, CalendarOutlined,
+    BarChartOutlined,
 } from '@ant-design/icons'
 import type { AppConfig, DataRecord } from '../../types/AppConfig'
 

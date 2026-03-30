@@ -64,33 +64,35 @@ export default function ConfigPreview({
     )
   }
 
+  const appConfig = config
+
   // ── 字段相关 ──────────────────────────────────────────────────
 
   function handleSaveField(field: FieldDef) {
-    const exists = config.fields.some(f => f.name === field.name)
+    const exists = appConfig.fields.some(f => f.name === field.name)
     const newFields = exists
-      ? config.fields.map(f => f.name === field.name ? field : f)
-      : [...config.fields, field]
+      ? appConfig.fields.map(f => f.name === field.name ? field : f)
+      : [...appConfig.fields, field]
 
-    const newColumns = (!exists && config.views.tableColumns.length < 6)
-      ? [...config.views.tableColumns, field.name]
-      : config.views.tableColumns
+    const newColumns = (!exists && appConfig.views.tableColumns.length < 6)
+      ? [...appConfig.views.tableColumns, field.name]
+      : appConfig.views.tableColumns
 
     onConfigChange({
-      ...config,
+      ...appConfig,
       fields: newFields,
-      views: { ...config.views, tableColumns: newColumns },
+      views: { ...appConfig.views, tableColumns: newColumns },
     })
     setFieldDrawerOpen(false)
   }
 
   function handleDeleteField(name: string) {
     onConfigChange({
-      ...config,
-      fields: config.fields.filter(f => f.name !== name),
+      ...appConfig,
+      fields: appConfig.fields.filter(f => f.name !== name),
       views: {
-        ...config.views,
-        tableColumns: config.views.tableColumns.filter(c => c !== name),
+        ...appConfig.views,
+        tableColumns: appConfig.views.tableColumns.filter(c => c !== name),
       },
     })
   }
@@ -100,17 +102,17 @@ export default function ConfigPreview({
   function handleSaveStyle(updated: ComponentConfig | PageConfig) {
     if (styleMode === 'component') {
       const comp = updated as ComponentConfig
-      const newPages = config.pages.map(p => ({
+      const newPages = appConfig.pages.map(p => ({
         ...p,
         components: p.components.map(c => c.id === comp.id ? comp : c),
       }))
-      onConfigChange({ ...config, pages: newPages })
+      onConfigChange({ ...appConfig, pages: newPages })
     }
 
     if (styleMode === 'page') {
       const pg = updated as PageConfig
-      const newPages = config.pages.map(p => p.key === pg.key ? pg : p)
-      onConfigChange({ ...config, pages: newPages })
+      const newPages = appConfig.pages.map(p => p.key === pg.key ? pg : p)
+      onConfigChange({ ...appConfig, pages: newPages })
     }
 
     setStyleDrawerOpen(false)
@@ -131,7 +133,7 @@ export default function ConfigPreview({
         flexShrink: 0,
       }}>
         <Text type="secondary" style={{ fontSize: 12 }}>
-          应用预览 · {config.fields.length} 个字段
+          应用预览 · {appConfig.fields.length} 个字段
         </Text>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button
@@ -156,7 +158,7 @@ export default function ConfigPreview({
       {/* 运行界面预览 */}
       <div style={{ flex: 1, overflow: 'hidden', padding: 12 }}>
         <AppPreview
-          config={config}
+          config={appConfig}
           onConfigChange={onConfigChange}
         />
       </div>
@@ -183,7 +185,7 @@ export default function ConfigPreview({
         {/* 字段列表 */}
         <Text strong style={{ fontSize: 13 }}>字段列表</Text>
         <div style={{ marginTop: 8, marginBottom: 20 }}>
-          {config.fields.map(field => (
+          {appConfig.fields.map(field => (
             <div
               key={field.name}
               style={{
@@ -238,7 +240,7 @@ export default function ConfigPreview({
         {/* 页面与组件样式 */}
         <Text strong style={{ fontSize: 13 }}>页面与组件样式</Text>
         <div style={{ marginTop: 8 }}>
-          {config.pages
+          {appConfig.pages
             .filter(p => !p.components.some(c => c.type === 'LoginForm'))
             .map(page => (
               <div key={page.key} style={{ marginBottom: 16 }}>
@@ -324,7 +326,7 @@ export default function ConfigPreview({
         component={editingComponent}
         page={editingPage}
         mode={styleMode}
-        config={config}
+        config={appConfig}
         onSave={handleSaveStyle}
         onCancel={() => setStyleDrawerOpen(false)}
       />

@@ -1,4 +1,4 @@
-import { Table, Button, Popconfirm, Typography, Space } from 'antd'
+import { Table, Button, Popconfirm, Typography } from 'antd'
 import { DeleteOutlined, DownloadOutlined } from '@ant-design/icons'
 import type { FieldDef } from '../../types/AppConfig'
 import type { DataRecord } from '../../types/AppConfig'
@@ -9,7 +9,7 @@ interface Props {
   fields:    FieldDef[]
   records:   DataRecord[]
   onDelete:  (id: string) => void
-  onExport:  () => void
+  onExport?: () => void
   pageSize?: number
 }
 
@@ -68,14 +68,16 @@ export default function DataTable({ fields, records, pageSize, onDelete, onExpor
         marginBottom:   12,
       }}>
         <Text type="secondary">{records.length} 条记录</Text>
-        <Button
-          size="small"
-          icon={<DownloadOutlined />}
-          onClick={onExport}
-          disabled={records.length === 0}
-        >
-          导出 CSV
-        </Button>
+        {onExport && (
+          <Button
+            size="small"
+            icon={<DownloadOutlined />}
+            onClick={onExport}
+            disabled={records.length === 0}
+          >
+            导出 CSV
+          </Button>
+        )}
       </div>
 
       <Table
