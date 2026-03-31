@@ -22,6 +22,8 @@ export default function DataTableWidget({
 
   const isFiltered = filtered !== null
   const tableData = isFiltered ? filtered : records
+  const del = config.runnerOptions?.allowRecordDelete !== false
+  const exp = config.runnerOptions?.allowRecordExport !== false
 
   return (
     <Card>
@@ -36,7 +38,13 @@ export default function DataTableWidget({
         fields={config.fields}
         records={tableData}
         onDelete={onDelete ?? (async () => { })}
-        onExport={showExport === false ? undefined : (onExport ?? (() => { }))}
+        onExport={
+          !exp || showExport === false
+            ? undefined
+            : (onExport ?? (() => { }))
+        }
+        allowRecordDelete={del}
+        allowRecordExport={exp}
         pageSize={pageSize}
         remotePagination={recordsRemote}
         isFiltered={isFiltered}

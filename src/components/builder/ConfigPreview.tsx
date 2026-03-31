@@ -8,6 +8,7 @@ import {
   PlusOutlined, SettingOutlined
 } from '@ant-design/icons'
 import type { AppConfig, FieldDef, ComponentConfig, PageConfig } from '../../types/AppConfig'
+import { BUILDER_SAVE_LABEL_CREATE } from '../../constants/branding'
 import AppPreview from '../runner/AppPreview'
 import FieldEditorDrawer from './FieldEditorDrawer'
 import ComponentStyleDrawer from './ComponentStyleDrawer'
@@ -30,10 +31,13 @@ interface Props {
   onConfigChange: (config: AppConfig) => void
   onConfirm: () => void
   loading: boolean
+  /** 与构建器顶栏主按钮一致；迭代场景传入「保存并进入应用」 */
+  confirmLabel?: string
 }
 
 export default function ConfigPreview({
-  config, onConfigChange, onConfirm, loading
+  config, onConfigChange, onConfirm, loading,
+  confirmLabel = BUILDER_SAVE_LABEL_CREATE,
 }: Props) {
   // 字段管理 Drawer
   const [fieldMgrOpen, setFieldMgrOpen] = useState(false)
@@ -150,7 +154,7 @@ export default function ConfigPreview({
             loading={loading}
             onClick={onConfirm}
           >
-            确认创建
+            {confirmLabel}
           </Button>
         </div>
       </div>

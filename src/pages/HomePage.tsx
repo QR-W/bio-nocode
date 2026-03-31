@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   Layout, Typography, Button, Card, Row, Col,
   Spin, Tag, Popconfirm, message,
-  Input, Tooltip
+  Input, Tooltip, Modal,
 } from 'antd'
 import {
   SettingOutlined, EditOutlined,
@@ -12,6 +12,9 @@ import { useNavigate } from 'react-router-dom'
 import { appRepo } from '../services/db/appRepo'
 import { useAuthStore } from '../stores/authStore'
 import type { AppConfig, ExperimentType } from '../types/AppConfig'
+import { PRODUCT_NAME, PRODUCT_NAME_WITH_EMOJI } from '../constants/branding'
+
+const WELCOME_STORAGE_KEY = 'bioform_welcome_v1'
 
 const { Header, Content } = Layout
 const { Title, Text } = Typography
@@ -22,7 +25,7 @@ const EXPERIMENT_TYPE_LABELS: Record<string, string> = {
   transfection: '转染实验',
   flow_cytometry: '流式细胞术',
   drug_assay: '药物活性检测',
-  project: '课题管理',
+  project: '自由/综合',
 }
 
 const TEMPLATE_OPTIONS: {
@@ -36,7 +39,7 @@ const TEMPLATE_OPTIONS: {
     { type: 'transfection', label: '转染实验', desc: '转染效率、质粒用量记录', emoji: '🧬' },
     { type: 'flow_cytometry', label: '流式细胞术', desc: '阳性细胞比例、检测指标', emoji: '📊' },
     { type: 'drug_assay', label: '药物活性检测', desc: 'CCK-8、MTT 吸光度与活力', emoji: '💊' },
-    { type: 'project', label: '课题管理', desc: '长期实验进度与结果追踪', emoji: '📋' },
+    { type: 'project', label: '自由描述', desc: '不限模板，由 AI 按你的话设计', emoji: '✨' },
   ]
 
 export default function HomePage() {
@@ -48,6 +51,15 @@ export default function HomePage() {
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [input, setInput] = useState('')
+  const [welcomeOpen, setWelcomeOpen] = useState(() => {
+    if (typeof localStorage === 'undefined') return false
+    return !localStorage.getItem(WELCOME_STORAGE_KEY)
+  })
+
+  function dismissWelcome() {
+    localStorage.setItem(WELCOME_STORAGE_KEY, '1')
+    setWelcomeOpen(false)
+  }
 
   useEffect(() => { loadApps() }, [])
 
@@ -99,7 +111,7 @@ export default function HomePage() {
         padding: '0 32px',
       }}>
         <Title level={4} style={{ margin: 0, color: '#4F46E5' }}>
-          🧬 BioForm
+          {PRODUCT_NAME_WITH_EMOJI}
         </Title>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -161,11 +173,19 @@ export default function HomePage() {
                 生成
               </Button>
             </div>
+            <div style={{ marginTop: 16 }}>
+              <Button type="link" style={{ paddingLeft: 0 }} onClick={() => navigate('/builder')}>
+                暂不输入，直接进入 AI 构建 →
+              </Button>
+            </div>
           </div>
 
           {/* 模板快速创建 */}
           <div style={{ marginBottom: 32 }}>
             <Text strong style={{ fontSize: 15 }}>或从模板快速开始</Text>
+            <Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 13 }}>
+              模板只影响首轮 AI 的领域联想，仍可在对话里任意改结构
+            </Text>
             <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
               {TEMPLATE_OPTIONS.map(opt => (
                 <Col span={8} key={opt.type}>
@@ -268,6 +288,27 @@ export default function HomePage() {
 
         </div>
       </Content>
+
+      <Modal
+        title={`欢迎使用 ${PRODUCT_NAME}`}
+        open={welcomeOpen}
+        onCancel={dismissWelcome}
+        footer={(
+          <Button type="primary" onClick={dismissWelcome}>
+            知道了
+          </Button>
+        )}
+      >
+        <Text style={{ display: 'block', marginBottom: 8 }}>
+          在「设置」里配置 DeepSeek API Key 后即可用 AI 生成应用。
+        </Text>
+        <Text style={{ display: 'block', marginBottom: 8 }}>
+          自然语言与模板任选；构建器里由对话主导设计。生成后记得设访问密码再保存。
+        </Text>
+        <Text type="secondary" style={{ fontSize: 13 }}>
+          数据留在本机浏览器（IndexedDB），适合自用或内网场景。
+        </Text>
+      </Modal>
     </Layout>
   )
 }

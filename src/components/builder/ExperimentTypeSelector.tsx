@@ -1,4 +1,5 @@
-import { Card, Row, Col, Typography } from 'antd'
+import { Card, Row, Col, Typography, Alert } from 'antd'
+import { COMPLIANCE_HINT } from '../../services/llm/prompts'
 import type { ExperimentType } from '../../types/AppConfig'
 
 const { Title, Text } = Typography
@@ -9,22 +10,37 @@ const EXPERIMENT_OPTIONS: { type: ExperimentType; label: string; desc: string }[
   { type: 'transfection',      label: '转染实验',       desc: '转染效率、质粒用量记录' },
   { type: 'flow_cytometry',    label: '流式细胞术',     desc: '阳性细胞比例、检测指标' },
   { type: 'drug_assay',        label: '药物活性检测',   desc: 'CCK-8、MTT 吸光度与活力' },
-  { type: 'project',           label: '课题管理',       desc: '长期实验进度与结果追踪' },
+  { type: 'project',           label: '自由描述',       desc: '不限定模板，对话主导设计' },
 ]
 
 interface Props {
   onSelect: (type: ExperimentType) => void
+  /** 构建器弹层内使用：紧凑布局，不重复大标题与合规长文 */
+  embedded?: boolean
 }
 
-export default function ExperimentTypeSelector({ onSelect }: Props) {
+export default function ExperimentTypeSelector({ onSelect, embedded }: Props) {
+  const wrapStyle = embedded
+    ? { maxWidth: '100%', margin: 0, padding: 0 }
+    : { maxWidth: 680, margin: '60px auto', padding: '0 24px' }
+
   return (
-    <div style={{ maxWidth: 680, margin: '60px auto', padding: '0 24px' }}>
-      <Title level={3} style={{ textAlign: 'center', marginBottom: 8 }}>
-        选择实验类型
-      </Title>
-      <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 32 }}>
-        根据你的实验场景选择，系统会自动推荐合适的字段
-      </Text>
+    <div style={wrapStyle}>
+      {!embedded && (
+        <>
+          <Title level={3} style={{ textAlign: 'center', marginBottom: 8 }}>
+            选择实验类型
+          </Title>
+          <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 32 }}>
+            可选：给 AI 一点领域联想；跳过本页则默认由对话自由推断
+          </Text>
+        </>
+      )}
+      {embedded && (
+        <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+          点选一类以丰富<strong>首轮</strong>系统提示中的领域知识；随时可在对话里改稿或选用「自由描述」。
+        </Text>
+      )}
 
       <Row gutter={[16, 16]}>
         {EXPERIMENT_OPTIONS.map(opt => (
@@ -41,6 +57,16 @@ export default function ExperimentTypeSelector({ onSelect }: Props) {
           </Col>
         ))}
       </Row>
+
+      {!embedded && (
+        <Alert
+          type="info"
+          showIcon
+          message="合规与使用说明"
+          description={COMPLIANCE_HINT}
+          style={{ marginTop: 28 }}
+        />
+      )}
     </div>
   )
 }

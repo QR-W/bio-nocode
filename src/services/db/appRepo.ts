@@ -56,6 +56,7 @@ export const appRepo = {
       createdAt: now,
       updatedAt: now,
       version: 1,
+      runnerOptions: partial.runnerOptions,
     }
     await db.apps.add(app)
     return app

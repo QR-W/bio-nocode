@@ -14,6 +14,8 @@ interface Props {
   onDelete: (id: string) => void
   onExport?: () => void
   pageSize?: number
+  allowRecordDelete?: boolean
+  allowRecordExport?: boolean
   /** Dexie 分页：与 antd Table 受控分页联动 */
   remotePagination?: RecordsRemotePagination
   /** 筛选模式下数据在客户端，总条数即 records.length */
@@ -28,50 +30,57 @@ export default function DataTable({
   isFiltered,
   onDelete,
   onExport,
+  allowRecordDelete = true,
+  allowRecordExport = true,
 }: Props) {
 
-  const columns = [
+  const baseColumns = [
     ...fields.map(field => ({
-      title:     field.label,
+      title: field.label,
       dataIndex: ['data', field.name],
-      key:       field.name,
-      ellipsis:  true,
-      render:    (val: unknown) => renderCell(val, field),
+      key: field.name,
+      ellipsis: true,
+      render: (val: unknown) => renderCell(val, field),
     })),
     {
-      title:  '录入时间',
-      key:    'createdAt',
-      width:  160,
+      title: '录入时间',
+      key: 'createdAt',
+      width: 160,
       render: (_: unknown, record: DataRecord) =>
         new Date(record.createdAt).toLocaleString('zh-CN', {
-          month:  '2-digit',
-          day:    '2-digit',
-          hour:   '2-digit',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
           minute: '2-digit',
         }),
     },
-    {
-      title:  '操作',
-      key:    'action',
-      width:  80,
-      render: (_: unknown, record: DataRecord) => (
-        <Popconfirm
-          title="确认删除这条记录？"
-          onConfirm={() => onDelete(record.id)}
-          okText="删除"
-          cancelText="取消"
-          okButtonProps={{ danger: true }}
-        >
-          <Button
-            type="text"
-            danger
-            size="small"
-            icon={<DeleteOutlined />}
-          />
-        </Popconfirm>
-      ),
-    },
   ]
+
+  const actionColumn = {
+    title: '操作',
+    key: 'action',
+    width: 80,
+    render: (_: unknown, record: DataRecord) => (
+      <Popconfirm
+        title="确认删除这条记录？"
+        onConfirm={() => onDelete(record.id)}
+        okText="删除"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+      >
+        <Button
+          type="text"
+          danger
+          size="small"
+          icon={<DeleteOutlined />}
+        />
+      </Popconfirm>
+    ),
+  }
+
+  const columns = allowRecordDelete
+    ? [...baseColumns, actionColumn]
+    : baseColumns
 
   const totalLabel = isFiltered
     ? records.length
@@ -102,7 +111,7 @@ export default function DataTable({
         marginBottom:   12,
       }}>
         <Text type="secondary">{totalLabel} 条记录{isFiltered ? '（已筛选）' : ''}</Text>
-        {onExport && (
+        {allowRecordExport && onExport && (
           <Button
             size="small"
             icon={<DownloadOutlined />}

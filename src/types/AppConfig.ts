@@ -135,7 +135,16 @@ export interface ViewConfig {
   charts: ChartConfig[]   // 不设为 optional，默认空数组
 }
 
-// ─── 7. AppConfig 主体 ───────────────────────────────────────────
+// ─── 7. 运行器选项（简单协作：共享填报时可关闭删改或导出）────────────────
+
+export interface RunnerOptions {
+  /** 默认可删除；设为 false 时运行页隐藏删除 */
+  allowRecordDelete?: boolean
+  /** 默认可导出表格 CSV；设为 false 时隐藏导出按钮 */
+  allowRecordExport?: boolean
+}
+
+// ─── 8. AppConfig 主体 ───────────────────────────────────────────
 
 export interface AppConfig {
   id: string
@@ -147,13 +156,15 @@ export interface AppConfig {
   password?: string
   views: ViewConfig
   pages: PageConfig[]   // ← 新增：页面配置
+  /** 运行态权限（可选，默认均允许） */
+  runnerOptions?: RunnerOptions
   createdAt: string
   updatedAt: string
   version: number
   userId: string   // 所属用户 ID
 }
 
-// ─── 8. 用户填写的数据记录 ───────────────────────────────────────
+// ─── 9. 用户填写的数据记录 ───────────────────────────────────────
 
 export interface DataRecord {
   id: string
@@ -163,7 +174,7 @@ export interface DataRecord {
   updatedAt: string
 }
 
-// ─── 9. 迭代时 LLM 返回的局部更新 ───────────────────────────────
+// ─── 10. 迭代时 LLM 返回的局部更新 ───────────────────────────────
 
 export type PartialAppConfig = Partial <
 Omit < AppConfig, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'version' >

@@ -9,9 +9,18 @@ interface Props {
     records: DataRecord[]
     onDelete: (id: string) => void
     onExport: () => void
+    allowRecordDelete?: boolean
+    allowRecordExport?: boolean
 }
 
-export default function TablePanel({ fields, records, onDelete, onExport }: Props) {
+export default function TablePanel({
+  fields,
+  records,
+  onDelete,
+  onExport,
+  allowRecordDelete = true,
+  allowRecordExport = true,
+}: Props) {
     const [filtered, setFiltered] = useState<DataRecord[] | null>(null)
     const display = filtered ?? records
 
@@ -27,6 +36,8 @@ export default function TablePanel({ fields, records, onDelete, onExport }: Prop
                 records={display}
                 onDelete={onDelete}
                 onExport={onExport}
+                allowRecordDelete={allowRecordDelete}
+                allowRecordExport={allowRecordExport}
                 isFiltered={filtered !== null}
             />
         </Card>

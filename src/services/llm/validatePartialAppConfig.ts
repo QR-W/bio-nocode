@@ -53,6 +53,11 @@ const pageConfigSchema = z.object({
   components: z.array(componentConfigSchema),
 }).loose()
 
+const runnerOptionsSchema = z.object({
+  allowRecordDelete: z.boolean().optional(),
+  allowRecordExport: z.boolean().optional(),
+}).loose()
+
 const partialAppConfigShape = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
@@ -62,6 +67,7 @@ const partialAppConfigShape = z.object({
   fields: z.array(fieldDefSchema).optional(),
   views: viewConfigSchema.optional(),
   pages: z.array(pageConfigSchema).optional(),
+  runnerOptions: runnerOptionsSchema.optional(),
 }).loose()
 
 type PartialShape = z.infer<typeof partialAppConfigShape>

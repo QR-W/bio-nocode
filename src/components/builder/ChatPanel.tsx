@@ -5,14 +5,26 @@ import type { ChatMessage } from '../../types/chat'
 
 const { Text } = Typography
 
-interface Props {
-  messages:   ChatMessage[]
-  loading:    boolean
-  onSend:     (content: string) => void
-  waitingForPassword?: boolean
+export interface QuickPromptItem {
+  label: string
+  prompt: string
 }
 
-export default function ChatPanel({ messages, loading, onSend }: Props) {
+interface Props {
+  messages: ChatMessage[]
+  loading: boolean
+  onSend: (content: string) => void
+  waitingForPassword?: boolean
+  quickPrompts?: QuickPromptItem[]
+}
+
+export default function ChatPanel({
+  messages,
+  loading,
+  onSend,
+  waitingForPassword,
+  quickPrompts,
+}: Props) {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -26,6 +38,8 @@ export default function ChatPanel({ messages, loading, onSend }: Props) {
     onSend(text)
     setInput('')
   }
+
+  const showQuick = quickPrompts?.length && !waitingForPassword && !loading
 
   return (
     <div
@@ -43,8 +57,13 @@ export default function ChatPanel({ messages, loading, onSend }: Props) {
         aria-busy={loading}
       >
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', marginTop: 60 }}>
-            <Text type="secondary">描述你的实验数据管理需求，AI 会自动生成对应的表单</Text>
+          <div style={{ textAlign: 'center', marginTop: 48, paddingLeft: 16, paddingRight: 16 }}>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+              用自然语言说明要记录什么、要哪些页面或流程——AI 据此生成配置，可随时迭代改稿。
+            </Text>
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              不必先选模板；需要常见实验字段联想时点顶栏「领域参考」即可。
+            </Text>
           </div>
         )}
 
@@ -64,6 +83,32 @@ export default function ChatPanel({ messages, loading, onSend }: Props) {
 
         <div ref={bottomRef} aria-hidden />
       </div>
+
+      {showQuick && (
+        <div
+          style={{
+            padding: '8px 24px 0',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            borderTop: '1px solid #f0f0f0',
+          }}
+          role="group"
+          aria-label="快捷修改话术"
+        >
+          {quickPrompts!.map(q => (
+            <Button
+              key={q.label}
+              size="small"
+              type="default"
+              disabled={loading}
+              onClick={() => onSend(q.prompt)}
+            >
+              {q.label}
+            </Button>
+          ))}
+        </div>
+      )}
 
       <div
         style={{
@@ -108,23 +153,22 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div
       style={{
-        display:       'flex',
+        display: 'flex',
         justifyContent: isUser ? 'flex-end' : 'flex-start',
-        marginBottom:  12,
+        marginBottom: 12,
       }}
     >
       <div
-        role={isUser ? 'status' : undefined}
         aria-label={isUser ? '你说' : 'AI 回复'}
         style={{
-          maxWidth:     '75%',
-          padding:      '10px 14px',
+          maxWidth: '75%',
+          padding: '10px 14px',
           borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-          background:   isUser ? '#4F46E5' : '#F3F4F6',
-          color:        isUser ? '#fff' : '#111',
-          fontSize:     14,
-          lineHeight:   1.6,
-          whiteSpace:   'pre-wrap',
+          background: isUser ? '#4F46E5' : '#F3F4F6',
+          color: isUser ? '#fff' : '#111',
+          fontSize: 14,
+          lineHeight: 1.6,
+          whiteSpace: 'pre-wrap',
         }}
       >
         {message.content}

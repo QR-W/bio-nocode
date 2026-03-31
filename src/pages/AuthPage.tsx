@@ -4,6 +4,7 @@ import { UserOutlined, LockOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { userRepo } from '../services/db/userRepo'
 import { useAuthStore } from '../stores/authStore'
+import { PRODUCT_NAME_WITH_EMOJI, PRODUCT_TAGLINE } from '../constants/branding'
 
 const { Title, Text } = Typography
 
@@ -84,9 +85,9 @@ export default function AuthPage() {
             <Card style={{ width: 420, borderRadius: 16 }}>
                 <div style={{ textAlign: 'center', marginBottom: 28 }}>
                     <Title level={3} style={{ margin: 0, color: '#4F46E5' }}>
-                        BioZeroCodeForm
+                        {PRODUCT_NAME_WITH_EMOJI}
                     </Title>
-                    <Text type="secondary">基于LLM的细胞生物学实验零代码平台</Text>
+                    <Text type="secondary">{PRODUCT_TAGLINE}</Text>
                 </div>
 
                 <Tabs

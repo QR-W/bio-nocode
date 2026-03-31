@@ -218,10 +218,12 @@ const DOMAIN_KNOWLEDGE: Record<ExperimentType, string> = {
   `,
 
   project: `
-【长期实验课题管理 — 领域知识】
-面向需要跨时间段追踪多个实验进展的科研管理场景：
+【自由 / 综合场景 — 领域知识】
+当用户未限定在某一类细胞实验、或描述的是课题台账/混合流程/非细胞业务时，**不要**机械套用下面列表；仅当用户明显在做「多实验进度看板」时可参考：
 
-必填字段：
+课题管理（可选参考）— 跨时间段追踪多个实验进展：
+
+必填字段（仅作参考，以用户描述为准）：
 - 课题/实验名称
 - 记录日期
 - 操作者/负责人
@@ -254,33 +256,48 @@ const DOMAIN_KNOWLEDGE: Record<ExperimentType, string> = {
 
 // ─── 系统提示词构建 ───────────────────────────────────────────
 
+function experimentTypeJsonLine(experimentType: ExperimentType): string {
+  return experimentType === 'project'
+    ? `"experimentType": "<在 JSON 中输出下列之一：passage | cryopreservation | transfection | flow_cytometry | drug_assay | project；以用户真实场景为准，混合/跨类/非细胞实验或未明确时一律用 project>"`
+    : `"experimentType": "${experimentType}"`
+}
+
 export function buildSystemPrompt(experimentType: ExperimentType): string {
+  const freedomBlock = experimentType === 'project'
+    ? `
+【自由度 — LLM 的核心职责】
+- 以用户自然语言为最高优先级：字段、页面数量与命名、导航结构均须服从用户描述；禁止为「套模板」而批量添加用户未提及的字段。
+- 若场景不是典型细胞实验（试剂/样本/仪器/动物/通用台账等），仍应忠实实现；experimentType 用 project。
+- 下文分类型「领域知识」仅供联想与合理性校验，**不是必选项**；仅当与用户描述相关时才吸收其中要点。
+`
+    : `
+【自由度】
+当前侧重的实验类型是「参考系」，不是牢笼：用户在本轮话术里明确要求的内容优先；若用户要求偏离下述领域默认值，以用户为准。
+`
+
   return `
 你是一个专业的细胞生物学实验数据管理系统生成助手，专门服务于生物医学实验室的非技术背景科研人员。
 
-你的核心任务：根据用户的自然语言描述，结合细胞生物学领域标准操作规范，生成一套完整、合理、实用的数据管理系统配置。
+你的核心任务：根据用户的自然语言描述，理解其真实数据结构与流程，生成一套可用的数据管理系统配置；必要时结合领域常识做**最小**补全，并在 description 里可简短交代假设。
+
+${freedomBlock}
 
 ${DOMAIN_KNOWLEDGE[experimentType]}
-${experimentType === 'project' ? `
-特别说明：如果用户描述的是具体实验类型（如传代培养、转染、药物检测等），
-请将 experimentType 设置为对应的类型值，不要默认使用 "project"。
-可选值：passage | cryopreservation | transfection | flow_cytometry | drug_assay | project
-` : ''}
 
 生成规范：
 1. 字段的 name 必须是英文小写加下划线（如 passage_number、cell_viability）
 2. 字段的 label 必须是中文，符合实验室日常使用习惯
-3. 必填字段（required: true）仅限于实验记录的核心字段
-4. 数值字段必须设置合理的 validation（min/max），参考上方领域知识中的数值约束
+3. 必填字段（required: true）仅限于用户流程中真正绕不开的项
+4. 数值字段在用户给出数值范围时设置 validation（min/max）；未提及时可省略或给宽松默认
 5. 有固定选项的字段使用 select 或 multiselect 类型，options 要完整
-6. tableColumns 选择最重要的 4~6 个字段用于列表展示
-7. 根据实验类型推荐最有价值的 1~2 个图表配置
+6. tableColumns 以用户关心的可见列为准，通常 4~8 列，未强调时再做取舍
+7. charts：用户要趋势/对比时配置；用户明确不要图表时可置空数组
 
 你必须严格按照以下 JSON 格式返回，不要包含任何其他内容：
 {
   "name": "应用名称",
   "description": "一句话描述",
-  "experimentType": "${experimentType}",
+  ${experimentTypeJsonLine(experimentType)},
   "cellLine": "细胞系名称（用户未提及则省略）",
   "fields": [ ...字段定义，格式同前... ],
   "views": {
@@ -327,10 +344,10 @@ pages 设计原则：
      "icon": "UserOutlined",
      "components": [{ "id": "login_form", "type": "LoginForm" }]
    }
-2. 首页（登录后第一个页面）通常放 StatsCards，让用户有数据概览
+2. 首页（登录后第一个页面）通常放 StatsCards，让用户有数据概览（用户明确不要时可换）
 3. 同一页面可以组合多个组件，如"数据管理"页同时放 SearchBar + DataTable
-4. 页面数量建议4~6个（含登录页）
-5. 根据用户需求灵活组合其余页面
+4. 含登录页在内的页面数量由用户描述决定，少至 2～3 页、多至更复杂流程均可
+5. 根据用户需求灵活组合、命名与排序页面；可增删组件与整页
 
 布局与样式配置（可选，不需要时省略）：
 每个组件支持 style 字段控制外观：
@@ -379,12 +396,19 @@ pages 设计原则：
 
 // ─── 首次生成提示词 ───────────────────────────────────────────
 
+export const COMPLIANCE_HINT = `
+数据记录建议遵循可追溯原则（如谁在何时改了什么）；本工具为实验室自用辅助，重大决策请以机构 SOP / 监管要求为准。
+`.trim()
+
 export function buildCreatePrompt(userInput: string): string {
   return `
 用户需求：${userInput}
 
-请根据以上需求和领域知识，生成一套实用的实验数据管理系统配置。
-字段设计要贴合实验室实际操作习惯，不要过度设计，以够用实用为原则。
+请根据以上需求生成配置。若描述不完整，可先做最小必要缺省，并在 description 中用一句话说明假设，便于用户下一轮继续改。
+
+字段与页面以用户措辞为准，避免「为了丰富而丰富」；只有隐含必要（如日期/编号类）才主动补充。
+
+${COMPLIANCE_HINT}
 `.trim()
 }
 
@@ -401,7 +425,10 @@ ${JSON.stringify(currentConfig, null, 2)}
 用户的修改需求：${userInput}
 
 请在当前配置基础上进行修改，返回**与 AppConfig 结构一致的 JSON 片段**（可合并进现有配置的字段子集）。
-只修改用户明确提到的部分，未提及的键不要出现在返回结果中以免误覆盖。
+
+常规迭代：只改用户明确提到的部分，未提及的键不要出现在返回结果中，以免误覆盖。
+
+**结构性大改**：若用户要求重做页面架构、替换流程、改成非细胞实验场景、大量增删字段或图表，可返回较多键（含 pages / fields / views 等）以完成目标；不要因「想少改」而保留与用户意图冲突的旧结构。
 
 若经判断**本轮不需要改动任何配置项**（例如用户仅在询问说明、或与改配置无关），请**仅返回空对象** \`{}\`，表示保持当前配置不变。
 `.trim()
