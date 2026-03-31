@@ -1,16 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Layout, Menu, Typography, Button, Spin, message } from 'antd'
 import {
   ArrowLeftOutlined, EditOutlined,
   DashboardOutlined, FormOutlined, TableOutlined,
   BarChartOutlined, UserOutlined, SearchOutlined,
   FileOutlined, UploadOutlined, HistoryOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { appRepo } from '../services/db/appRepo'
-import { recordRepo } from '../services/db/recordRepo'
+import {
+  RECORD_SAMPLE_MAX,
+  RECORD_TABLE_PAGE_SIZE_DEFAULT,
+  recordRepo,
+} from '../services/db/recordRepo'
 import type { AppConfig, DataRecord } from '../types/AppConfig'
 import PageRenderer from '../components/engine/PageRenderer'
+import type { RecordAggregate } from '../components/widgets/types'
 
 const { Sider, Header, Content } = Layout
 const { Text, Title } = Typography
@@ -32,17 +38,32 @@ export default function AppRunnerPage() {
   const { appId } = useParams<{ appId: string }>()
 
   const [app, setApp] = useState<AppConfig | null>(null)
-  const [records, setRecords] = useState<DataRecord[]>([])
+  /** 表格当前页（Dexie 分页） */
+  const [recordsTable, setRecordsTable] = useState<DataRecord[]>([])
+  /** 图表/时间轴：最近最多 RECORD_SAMPLE_MAX 条 */
+  const [recordsSample, setRecordsSample] = useState<DataRecord[]>([])
+  const [recordsTotal, setRecordsTotal] = useState(0)
+  const [tablePage, setTablePage] = useState(1)
+  const [tablePageSize, setTablePageSize] = useState(RECORD_TABLE_PAGE_SIZE_DEFAULT)
+  const [recordAggregate, setRecordAggregate] = useState<RecordAggregate | null>(null)
+
   const [pageLoading, setPageLoading] = useState(true)
   const [activeKey, setActiveKey] = useState<string>('')
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUsername, setCurrentUsername] = useState('')
 
+  const loadTablePage = useCallback(async (id: string, page: number, size: number) => {
+    const offset = (page - 1) * size
+    const rows = await recordRepo.listByAppPaged(id, offset, size)
+    setRecordsTable(rows)
+    setTablePage(page)
+    setTablePageSize(size)
+  }, [])
+
   useEffect(() => {
-    if (appId) loadData(appId)
+    if (appId) void loadData(appId)
   }, [appId])
 
-  // 守卫：app 加载完且未登录时，处理放行或跳登录页
   useEffect(() => {
     if (!app || isLoggedIn) return
 
@@ -67,23 +88,38 @@ export default function AppRunnerPage() {
   async function loadData(id: string) {
     setPageLoading(true)
     try {
-      const [appData, recordData] = await Promise.all([
-        appRepo.getById(id),
-        recordRepo.listByApp(id),
-      ])
+      const appData = await appRepo.getById(id)
       if (!appData) {
         message.error('应用不存在')
         navigate('/')
         return
       }
       setApp(appData)
-      setRecords(recordData)
+
+      const total = await recordRepo.countByApp(id)
+      const size = RECORD_TABLE_PAGE_SIZE_DEFAULT
+      const sampleLen = Math.min(RECORD_SAMPLE_MAX, total)
+      const [pageRows, sampleRows, thisMonth] = await Promise.all([
+        recordRepo.listByAppPaged(id, 0, size),
+        recordRepo.listByAppPaged(id, 0, sampleLen),
+        recordRepo.countByAppThisMonth(id),
+      ])
+
+      setRecordsTotal(total)
+      setRecordsTable(pageRows)
+      setRecordsSample(sampleRows)
+      setTablePage(1)
+      setTablePageSize(size)
+      setRecordAggregate({
+        total,
+        thisMonthCount: thisMonth,
+        latestCreatedAt: pageRows[0]?.createdAt ?? null,
+      })
 
       const key = `loggedIn_${appData.id}`
       const saved = sessionStorage.getItem(key)
 
       if (saved === 'true') {
-        // 已登录：恢复用户名，跳到第一个非登录页
         const savedUsername = sessionStorage.getItem(`username_${appData.id}`)
         if (savedUsername) setCurrentUsername(savedUsername)
         setIsLoggedIn(true)
@@ -93,23 +129,44 @@ export default function AppRunnerPage() {
         )
         setActiveKey(firstNonLogin?.key ?? appData.pages?.[0]?.key ?? 'dashboard')
       } else {
-        // 未登录：跳到登录页（如果有）
         const loginPage = appData.pages?.find(p =>
           p.components.some(c => c.type === 'LoginForm')
         )
         setActiveKey(loginPage?.key ?? appData.pages?.[0]?.key ?? 'dashboard')
       }
-
     } finally {
       setPageLoading(false)
     }
   }
 
+  const getRecordsForQuery = useCallback(async () => {
+    if (!appId) return []
+    return recordRepo.listByApp(appId)
+  }, [appId])
+
   async function handleSubmit(values: Record<string, unknown>) {
     if (!appId) return
     try {
       const record = await recordRepo.create(appId, values)
-      setRecords(prev => [record, ...prev])
+      const total = await recordRepo.countByApp(appId)
+      const thisMonth = await recordRepo.countByAppThisMonth(appId)
+      const head = await recordRepo.listByAppPaged(appId, 0, 1)
+      setRecordAggregate({
+        total,
+        thisMonthCount: thisMonth,
+        latestCreatedAt: head[0]?.createdAt ?? null,
+      })
+      setRecordsTotal(total)
+
+      if (tablePage === 1) {
+        setRecordsTable(prev => [record, ...prev.slice(0, tablePageSize - 1)])
+      } else {
+        await loadTablePage(appId, tablePage, tablePageSize)
+      }
+
+      const cap = Math.min(RECORD_SAMPLE_MAX, total)
+      const sample = await recordRepo.listByAppPaged(appId, 0, cap)
+      setRecordsSample(sample)
       message.success('记录已提交')
     } catch {
       message.error('提交失败，请重试')
@@ -117,8 +174,33 @@ export default function AppRunnerPage() {
   }
 
   async function handleDelete(id: string) {
+    if (!appId) return
     await recordRepo.delete(id)
-    setRecords(prev => prev.filter(r => r.id !== id))
+    const total = await recordRepo.countByApp(appId)
+    const thisMonth = await recordRepo.countByAppThisMonth(appId)
+    const head = await recordRepo.listByAppPaged(appId, 0, 1)
+    setRecordAggregate({
+      total,
+      thisMonthCount: thisMonth,
+      latestCreatedAt: head[0]?.createdAt ?? null,
+    })
+    setRecordsTotal(total)
+
+    const offset = (tablePage - 1) * tablePageSize
+    let rows = await recordRepo.listByAppPaged(appId, offset, tablePageSize)
+    if (rows.length === 0 && tablePage > 1) {
+      const nextPage = tablePage - 1
+      const o2 = (nextPage - 1) * tablePageSize
+      rows = await recordRepo.listByAppPaged(appId, o2, tablePageSize)
+      setTablePage(nextPage)
+    }
+    setRecordsTable(rows)
+
+    const cap = Math.min(RECORD_SAMPLE_MAX, total)
+    const sample = cap > 0
+      ? await recordRepo.listByAppPaged(appId, 0, cap)
+      : []
+    setRecordsSample(sample)
     message.success('已删除')
   }
 
@@ -134,6 +216,16 @@ export default function AppRunnerPage() {
     URL.revokeObjectURL(url)
   }
 
+  async function handleExportReactSource() {
+    if (!app) return
+    try {
+      const { exportReactProject } = await import('../utils/exportReactProject')
+      await exportReactProject(app)
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '导出失败')
+    }
+  }
+
   function handleLogin(password: string, username?: string): boolean {
     if (!app?.password) {
       message.error('该应用尚未设置访问密码，请联系管理员')
@@ -144,10 +236,10 @@ export default function AppRunnerPage() {
     handleLoginSuccess(username)
     if (username) setCurrentUsername(username)
 
-    const firstNonLogin = pages.find(p =>
+    const pg = resolvedPages.find(p =>
       !p.components.some(c => c.type === 'LoginForm')
     )
-    if (firstNonLogin) setActiveKey(firstNonLogin.key)
+    if (pg) setActiveKey(pg.key)
     return true
   }
 
@@ -157,7 +249,7 @@ export default function AppRunnerPage() {
     sessionStorage.removeItem(`username_${app.id}`)
     setIsLoggedIn(false)
     setCurrentUsername('')
-    const loginPage = pages.find(p =>
+    const loginPage = resolvedPages.find(p =>
       p.components.some(c => c.type === 'LoginForm')
     )
     if (loginPage) setActiveKey(loginPage.key)
@@ -178,7 +270,7 @@ export default function AppRunnerPage() {
 
   if (!app) return null
 
-  const pages = app.pages?.length ? app.pages : [
+  const resolvedPages = app.pages?.length ? app.pages : [
     {
       key: 'dashboard',
       title: '概览',
@@ -208,15 +300,19 @@ export default function AppRunnerPage() {
     },
   ]
 
-  const currentPage = pages.find(p => p.key === activeKey) ?? pages[0]
+  const currentPage = resolvedPages.find(p => p.key === activeKey) ?? resolvedPages[0]
 
-  const menuItems = pages
+  const menuItems = resolvedPages
     .filter(page => !page.components.some(c => c.type === 'LoginForm'))
     .map(page => ({
       key: page.key,
       icon: ICON_MAP[page.icon ?? ''] ?? <FileOutlined />,
       label: page.title,
     }))
+
+  const onTablePageChange = (p: number, ps: number) => {
+    if (appId) void loadTablePage(appId, p, ps)
+  }
 
   return (
     <Layout style={{ height: '100vh' }}>
@@ -269,7 +365,7 @@ export default function AppRunnerPage() {
           items={menuItems}
           onClick={({ key }) => {
             if (!isLoggedIn) {
-              const targetPage = pages.find(p => p.key === key)
+              const targetPage = resolvedPages.find(p => p.key === key)
               const isLoginPage = targetPage?.components.some(
                 c => c.type === 'LoginForm'
               )
@@ -315,8 +411,14 @@ export default function AppRunnerPage() {
             {currentPage?.title}
           </Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            v{app.version} · {records.length} 条记录
+            v{app.version} · {recordsTotal} 条记录
           </Text>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={() => { void handleExportReactSource() }}
+          >
+            导出源码
+          </Button>
         </Header>
 
         <Content style={{
@@ -328,7 +430,16 @@ export default function AppRunnerPage() {
             <PageRenderer
               page={currentPage}
               config={app}
-              records={records}
+              records={recordsTable}
+              recordsSample={recordsSample}
+              recordAggregate={recordAggregate ?? undefined}
+              recordsRemote={{
+                page: tablePage,
+                pageSize: tablePageSize,
+                total: recordsTotal,
+                onPageChange: onTablePageChange,
+              }}
+              getRecordsForQuery={getRecordsForQuery}
               onSubmit={handleSubmit}
               onDelete={handleDelete}
               onExport={handleExport}

@@ -177,6 +177,8 @@ export default function ComponentStyleDrawer({
             open={open}
             onClose={onCancel}
             width={400}
+            keyboard
+            maskClosable
             destroyOnClose
             footer={
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

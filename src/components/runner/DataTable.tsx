@@ -2,20 +2,34 @@ import { Table, Button, Popconfirm, Typography } from 'antd'
 import { DeleteOutlined, DownloadOutlined } from '@ant-design/icons'
 import type { FieldDef } from '../../types/AppConfig'
 import type { DataRecord } from '../../types/AppConfig'
+import type { RecordsRemotePagination } from '../widgets/types'
 
 const { Text } = Typography
 
+const VIRTUAL_THRESHOLD = 80
+
 interface Props {
-  fields:    FieldDef[]
-  records:   DataRecord[]
-  onDelete:  (id: string) => void
+  fields: FieldDef[]
+  records: DataRecord[]
+  onDelete: (id: string) => void
   onExport?: () => void
   pageSize?: number
+  /** Dexie 分页：与 antd Table 受控分页联动 */
+  remotePagination?: RecordsRemotePagination
+  /** 筛选模式下数据在客户端，总条数即 records.length */
+  isFiltered?: boolean
 }
 
-export default function DataTable({ fields, records, pageSize, onDelete, onExport }: Props) {
+export default function DataTable({
+  fields,
+  records,
+  pageSize,
+  remotePagination,
+  isFiltered,
+  onDelete,
+  onExport,
+}: Props) {
 
-  // 根据 fields 动态生成列配置
   const columns = [
     ...fields.map(field => ({
       title:     field.label,
@@ -59,6 +73,26 @@ export default function DataTable({ fields, records, pageSize, onDelete, onExpor
     },
   ]
 
+  const totalLabel = isFiltered
+    ? records.length
+    : (remotePagination?.total ?? records.length)
+
+  const useVirtual = records.length >= VIRTUAL_THRESHOLD
+
+  const pagination = remotePagination && !isFiltered
+    ? {
+        current: remotePagination.page,
+        pageSize: remotePagination.pageSize,
+        total: remotePagination.total,
+        showSizeChanger: true,
+        pageSizeOptions: [20, 50, 100, 200],
+        onChange: (p: number, ps: number) => remotePagination.onPageChange(p, ps),
+      }
+    : {
+        pageSize: pageSize ?? 10,
+        showSizeChanger: !isFiltered,
+      }
+
   return (
     <div>
       <div style={{
@@ -67,13 +101,13 @@ export default function DataTable({ fields, records, pageSize, onDelete, onExpor
         alignItems:     'center',
         marginBottom:   12,
       }}>
-        <Text type="secondary">{records.length} 条记录</Text>
+        <Text type="secondary">{totalLabel} 条记录{isFiltered ? '（已筛选）' : ''}</Text>
         {onExport && (
           <Button
             size="small"
             icon={<DownloadOutlined />}
             onClick={onExport}
-            disabled={records.length === 0}
+            disabled={totalLabel === 0}
           >
             导出 CSV
           </Button>
@@ -85,7 +119,9 @@ export default function DataTable({ fields, records, pageSize, onDelete, onExpor
         dataSource={records}
         rowKey="id"
         size="small"
-        pagination={{ pageSize: pageSize ?? 10, showSizeChanger: false }}        scroll={{ x: 'max-content' }}
+        pagination={pagination}
+        virtual={useVirtual}
+        scroll={useVirtual ? { x: 'max-content', y: 480 } : { x: 'max-content' }}
         locale={{ emptyText: '暂无数据，请在左侧填写表单提交' }}
       />
     </div>

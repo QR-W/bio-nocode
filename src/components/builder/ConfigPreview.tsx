@@ -169,6 +169,9 @@ export default function ConfigPreview({
         open={fieldMgrOpen}
         onClose={() => setFieldMgrOpen(false)}
         width={420}
+        keyboard
+        maskClosable
+        destroyOnClose
         extra={
           <Button
             size="small"

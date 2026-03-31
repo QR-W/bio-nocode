@@ -19,7 +19,7 @@ export default function TablePanel({ fields, records, onDelete, onExport }: Prop
         <Card>
             <QueryBar
                 fields={fields}
-                records={records}
+                getRecordsForQuery={async () => records}
                 onResult={setFiltered}
             />
             <DataTable
@@ -27,6 +27,7 @@ export default function TablePanel({ fields, records, onDelete, onExport }: Prop
                 records={display}
                 onDelete={onDelete}
                 onExport={onExport}
+                isFiltered={filtered !== null}
             />
         </Card>
     )

@@ -8,15 +8,16 @@ import { chatOnce } from '../../services/llm/llmClient'
 const { Text } = Typography
 
 interface Props {
-  fields:    FieldDef[]
-  records:   DataRecord[]
-  onResult:  (filtered: DataRecord[] | null) => void  // null 表示清除过滤
+  fields: FieldDef[]
+  /** 用户点击「查询」时再加载用于筛选的全量数据 */
+  getRecordsForQuery: () => Promise<DataRecord[]>
+  onResult: (filtered: DataRecord[] | null) => void
 }
 
-export default function QueryBar({ fields, records, onResult }: Props) {
-  const [input,   setInput]   = useState('')
+export default function QueryBar({ fields, getRecordsForQuery, onResult }: Props) {
+  const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [active,  setActive]  = useState(false)  // 当前是否有过滤条件生效
+  const [active, setActive] = useState(false)
 
   async function handleQuery() {
     const text = input.trim()
@@ -24,7 +25,8 @@ export default function QueryBar({ fields, records, onResult }: Props) {
 
     setLoading(true)
     try {
-      // 让 LLM 把自然语言转成过滤条件描述
+      const records = await getRecordsForQuery()
+
       const fieldDesc = fields.map(f => `${f.name}(${f.label}, ${f.type})`).join(', ')
       const prompt = `
 你是一个数据过滤助手。
@@ -41,7 +43,6 @@ export default function QueryBar({ fields, records, onResult }: Props) {
 
       const raw = await chatOnce([{ role: 'user', content: prompt }])
 
-      // 解析过滤条件
       const json = raw.match(/\[[\s\S]*\]/)?.[0] ?? '[]'
       const filters: { field: string; op: string; value: unknown }[] = JSON.parse(json)
 
@@ -51,16 +52,13 @@ export default function QueryBar({ fields, records, onResult }: Props) {
         return
       }
 
-      // 在内存里执行过滤
       const result = records.filter(record =>
-        filters.every(f => applyFilter(record.data[f.field], f.op, f.value))
+        filters.every(f => applyFilter(record.data[f.field], f.op, f.value)),
       )
 
       onResult(result)
       setActive(true)
-
     } catch {
-      // 查询失败时不过滤，显示全部
       onResult(null)
       setActive(false)
     } finally {
@@ -84,6 +82,7 @@ export default function QueryBar({ fields, records, onResult }: Props) {
           placeholder="用自然语言查询，例如：活率大于 90% 的记录"
           prefix={loading ? <Spin size="small" /> : <SearchOutlined style={{ color: '#aaa' }} />}
           disabled={loading}
+          aria-label="自然语言查询条件"
         />
         <Button
           type="primary"
@@ -104,26 +103,25 @@ export default function QueryBar({ fields, records, onResult }: Props) {
       </div>
       {active && (
         <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-          已过滤，点击「清除」显示全部记录
+          已过滤（已筛选全表数据）；点击「清除」恢复分页列表
         </Text>
       )}
     </div>
   )
 }
 
-// 执行单条过滤逻辑
 function applyFilter(val: unknown, op: string, target: unknown): boolean {
   if (val === undefined || val === null) return false
-  const a = typeof val    === 'number' ? val    : String(val)
+  const a = typeof val === 'number' ? val : String(val)
   const b = typeof target === 'number' ? target : String(target)
 
   switch (op) {
-    case 'eq':       return a == b
-    case 'gt':       return Number(a) >  Number(b)
-    case 'lt':       return Number(a) <  Number(b)
-    case 'gte':      return Number(a) >= Number(b)
-    case 'lte':      return Number(a) <= Number(b)
+    case 'eq': return a == b
+    case 'gt': return Number(a) > Number(b)
+    case 'lt': return Number(a) < Number(b)
+    case 'gte': return Number(a) >= Number(b)
+    case 'lte': return Number(a) <= Number(b)
     case 'contains': return String(a).includes(String(b))
-    default:         return true
+    default: return true
   }
 }

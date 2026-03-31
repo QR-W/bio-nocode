@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Layout, Typography, Button, message, Empty } from 'antd'
 import { ArrowLeftOutlined, CheckOutlined } from '@ant-design/icons'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -41,40 +41,43 @@ export default function AppBuilderPage() {
 
   const loading = status === 'generating'
 
+  const llmRequestSeqRef = useRef(0)
+  const handleSendRef = useRef<(content: string) => Promise<void>>(async () => {})
+
   // 属性面板是否显示（有选中元素时覆盖左侧）
   const showProperties = Boolean(selectionType && currentConfig)
 
-  useEffect(() => {
-    if (initMsg && experimentType && !hasAutoSent) {
-      setHasAutoSent(true)
-      sessionStorage.removeItem('builderInitMsg')  // ← 用完清除
-      handleSend(initMsg)
-    }
-  }, [experimentType])
+  const propertiesBackRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    if (appId) {
-      appRepo.getById(appId).then(app => {
-        if (app) {
-          setCurrentConfig(app)
-          setExperimentType(app.experimentType)
-        }
-      })
-    }
-    return () => {
-      reset()
+    if (!showProperties) return
+    const id = window.requestAnimationFrame(() => {
+      propertiesBackRef.current?.focus()
+    })
+    return () => cancelAnimationFrame(id)
+  }, [showProperties])
+
+  useEffect(() => {
+    if (!showProperties) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
       clearSelection()
     }
-  }, [appId])
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [showProperties, clearSelection])
 
-  async function handleSend(content: string) {
+  const handleSend = useCallback(async (content: string) => {
     if (!experimentType) return
 
     if (waitingForPassword) {
       const password = content.trim()
       if (!password) return
+      const base = useBuilderStore.getState().currentConfig
+      if (!base) return
       addUserMessage(content)
-      const updated = { ...currentConfig!, password }
+      const updated = { ...base, password }
       setCurrentConfig(updated)
       addAssistantMessage(
         `✅ 访问密码已设置：${password}\n\n右侧预览已更新，确认无误后点击「确认创建应用」。`
@@ -85,18 +88,22 @@ export default function AppBuilderPage() {
 
     addUserMessage(content)
     setStatus('generating')
+    const requestId = ++llmRequestSeqRef.current
+    const baseSnapshot = useBuilderStore.getState().currentConfig
 
     try {
       let partial
 
-      if (!currentConfig) {
+      if (!baseSnapshot) {
         partial = await generateApp(content, experimentType)
       } else {
-        partial = await updateApp(content, currentConfig)
+        partial = await updateApp(content, baseSnapshot)
       }
 
-      const merged = currentConfig
-        ? { ...currentConfig, ...partial } as AppConfig
+      if (requestId !== llmRequestSeqRef.current) return
+
+      const merged = baseSnapshot
+        ? { ...baseSnapshot, ...partial } as AppConfig
         : {
           id: '',
           createdAt: new Date().toISOString(),
@@ -107,29 +114,71 @@ export default function AppBuilderPage() {
           ...partial,
         } as AppConfig
 
-      // 清除 LLM 可能生成的密码
-      if (!currentConfig) {
+      if (!baseSnapshot) {
         delete (merged as unknown as Record<string, unknown>).password
       }
 
       setCurrentConfig(merged)
 
-      if (!appId && !currentConfig && !merged.password) {
+      if (!appId && !baseSnapshot && !merged.password) {
         addAssistantMessage(
           '已生成应用配置，请设置一个访问密码（实验室成员需要输入此密码才能进入应用）：'
         )
         setWaitingForPassword(true)
+      } else if (
+        baseSnapshot
+        && partial
+        && typeof partial === 'object'
+        && Object.keys(partial as object).length === 0
+      ) {
+        addAssistantMessage(
+          '当前配置未做修改（模型返回了空更新）。若需要调整表单/页面/图表，请说明具体改动。'
+        )
       } else {
         addAssistantMessage('已根据你的需求更新了应用配置，请在右侧预览确认。')
       }
 
       setStatus('done')
     } catch (err) {
+      if (requestId !== llmRequestSeqRef.current) return
       const errMsg = err instanceof Error ? err.message : '生成失败，请重试'
       addAssistantMessage(`生成失败：${errMsg}`)
       setStatus('error', errMsg)
     }
-  }
+  }, [
+    experimentType,
+    waitingForPassword,
+    appId,
+    addUserMessage,
+    setCurrentConfig,
+    addAssistantMessage,
+    setStatus,
+  ])
+
+  handleSendRef.current = handleSend
+
+  useEffect(() => {
+    if (!initMsg || !experimentType || hasAutoSent) return
+    setHasAutoSent(true)
+    sessionStorage.removeItem('builderInitMsg')
+    void handleSendRef.current(initMsg)
+  }, [experimentType, initMsg, hasAutoSent])
+
+  useEffect(() => {
+    let cancelled = false
+    if (appId) {
+      void appRepo.getById(appId).then(app => {
+        if (cancelled || !app) return
+        setCurrentConfig(app)
+        setExperimentType(app.experimentType)
+      })
+    }
+    return () => {
+      cancelled = true
+      reset()
+      clearSelection()
+    }
+  }, [appId, setCurrentConfig, reset, clearSelection])
 
   async function handleConfirm() {
     if (!currentConfig) return
@@ -189,7 +238,12 @@ export default function AppBuilderPage() {
         gap: 12,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Button icon={<ArrowLeftOutlined />} type="text" onClick={handleBack} />
+          <Button
+            icon={<ArrowLeftOutlined />}
+            type="text"
+            onClick={handleBack}
+            aria-label="返回首页并关闭构建器"
+          />
           <Text strong style={{ fontSize: 16 }}>
             {appId ? '迭代应用' : '新建应用'}
           </Text>
@@ -211,22 +265,27 @@ export default function AppBuilderPage() {
         height: 'calc(100vh - 64px)',
       }}>
 
-        {/* 左侧：对话区 或 属性面板 */}
-        <div style={{
-          flex: '0 0 40%',
-          borderRight: '1px solid #f0f0f0',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-        }}>
-          {/* 对话区（始终存在，被属性面板覆盖时隐藏） */}
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            display: showProperties ? 'none' : 'flex',
+        <div
+          role="region"
+          aria-label="构建器左侧：AI 对话与属性编辑"
+          style={{
+            flex: '0 0 40%',
+            borderRight: '1px solid #f0f0f0',
+            overflow: 'hidden',
+            display: 'flex',
             flexDirection: 'column',
-          }}>
+            position: 'relative',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: showProperties ? 'none' : 'flex',
+              flexDirection: 'column',
+            }}
+            id="builder-chat-pane"
+          >
             <ChatPanel
               messages={messages}
               loading={loading}
@@ -235,17 +294,20 @@ export default function AppBuilderPage() {
             />
           </div>
 
-          {/* 属性面板（选中元素时覆盖） */}
           {showProperties && currentConfig && (
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              background: '#fff',
-              zIndex: 10,
-            }}>
-              {/* 属性面板顶部栏 */}
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="builder-properties-title"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                background: '#fff',
+                zIndex: 10,
+              }}
+            >
               <div style={{
                 padding: '10px 16px',
                 borderBottom: '1px solid #f0f0f0',
@@ -254,18 +316,21 @@ export default function AppBuilderPage() {
                 justifyContent: 'space-between',
                 flexShrink: 0,
               }}>
-                <Text strong style={{ fontSize: 13 }}>属性面板</Text>
+                <Text id="builder-properties-title" strong style={{ fontSize: 13 }}>
+                  属性面板
+                </Text>
                 <Button
+                  ref={propertiesBackRef}
                   size="small"
                   type="text"
                   onClick={clearSelection}
+                  aria-label="返回 AI 对话（快捷键 Esc）"
                 >
                   ← 返回对话
                 </Button>
               </div>
 
-              {/* 属性内容 */}
-              <div style={{ flex: 1, overflow: 'hidden' }}>
+              <div style={{ flex: 1, overflow: 'hidden' }} role="region" aria-label="选中项属性表单">
                 <PropertiesPanel
                   config={currentConfig}
                   onConfigChange={handleConfigChange}
@@ -275,8 +340,11 @@ export default function AppBuilderPage() {
           )}
         </div>
 
-        {/* 右侧：预览区 */}
-        <div style={{ flex: '0 0 60%', overflow: 'hidden' }}>
+        <div
+          role="region"
+          aria-label="应用预览与页面结构"
+          style={{ flex: '0 0 60%', overflow: 'hidden' }}
+        >
           {currentConfig ? (
             <AppPreview
               config={currentConfig}

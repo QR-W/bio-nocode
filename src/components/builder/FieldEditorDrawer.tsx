@@ -104,6 +104,8 @@ export default function FieldEditorDrawer({ open, field, onSave, onCancel }: Pro
       open={open}
       onClose={onCancel}
       width={460}
+      keyboard
+      maskClosable
       destroyOnClose
       footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

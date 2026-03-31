@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { Spin } from 'antd'
 import AuthGuard from '../components/AuthGuard'
+import RouteErrorBoundary from '../components/RouteErrorBoundary'
 
 const HomePage = lazy(() => import('../pages/HomePage'))
 const AppBuilderPage = lazy(() => import('../pages/AppBuilderPage'))
@@ -30,6 +31,18 @@ function withGuard(element: React.ReactNode) {
   return withSuspense(<AuthGuard>{element}</AuthGuard>)
 }
 
+/** 捕获子树渲染错误，避免白屏；不清理 Zustand 中的构建器状态 */
+function withGuardAndErrorBoundary(
+  element: React.ReactNode,
+  errorTitle?: string,
+) {
+  return withSuspense(
+    <AuthGuard>
+      <RouteErrorBoundary title={errorTitle}>{element}</RouteErrorBoundary>
+    </AuthGuard>,
+  )
+}
+
 export const router = createBrowserRouter([
   {
     path: '/auth',
@@ -41,15 +54,15 @@ export const router = createBrowserRouter([
   },
   {
     path: '/builder',
-    element: withGuard(<AppBuilderPage />),
+    element: withGuardAndErrorBoundary(<AppBuilderPage />, '应用构建器'),
   },
   {
     path: '/builder/:appId',
-    element: withGuard(<AppBuilderPage />),
+    element: withGuardAndErrorBoundary(<AppBuilderPage />, '应用构建器'),
   },
   {
     path: '/app/:appId',
-    element: withGuard(<AppRunnerPage />),
+    element: withGuardAndErrorBoundary(<AppRunnerPage />, '应用运行'),
   },
   {
     path: '/settings',

@@ -11,6 +11,7 @@ export default function AuthPage() {
     const navigate = useNavigate()
     const setUser = useAuthStore(s => s.setUser)
     const [loading, setLoading] = useState(false)
+    const [activeTab, setActiveTab] = useState<'login' | 'register'>('login')
     const [form] = Form.useForm()
 
     async function handleLogin(values: { username: string; password: string }) {
@@ -83,27 +84,30 @@ export default function AuthPage() {
             <Card style={{ width: 420, borderRadius: 16 }}>
                 <div style={{ textAlign: 'center', marginBottom: 28 }}>
                     <Title level={3} style={{ margin: 0, color: '#4F46E5' }}>
-                        🧬 BioForm
+                        BioZeroCodeForm
                     </Title>
-                    <Text type="secondary">细胞生物学实验数据管理平台</Text>
+                    <Text type="secondary">基于LLM的细胞生物学实验零代码平台</Text>
                 </div>
 
                 <Tabs
                     centered
+                    activeKey={activeTab}
+                    onChange={(key) => {
+                        setActiveTab(key as 'login' | 'register')
+                        form.resetFields()
+                    }}
                     items={[
                         {
                             key: 'login',
                             label: '登录',
-                            children: formContent(handleLogin),
                         },
                         {
                             key: 'register',
                             label: '注册',
-                            children: formContent(handleRegister),
                         },
                     ]}
-                    onChange={() => form.resetFields()}
                 />
+                {formContent(activeTab === 'login' ? handleLogin : handleRegister)}
             </Card>
         </div>
     )
