@@ -22,8 +22,9 @@ const fieldDefSchema = z.object({
   type: z.enum(FIELD_TYPES),
 }).loose()
 
-const chartConfigSchema = z.object({
-  id: z.string().min(1, { message: '不能为空' }),
+/** LLM 常省略 id；解析后统一补全为 chart_1、chart_2… */
+const chartConfigSchemaInput = z.object({
+  id: z.string().optional(),
   title: z.string().min(1, { message: '不能为空' }),
   type: z.enum(CHART_TYPES),
   xField: z.string().min(1, { message: '不能为空' }),
@@ -37,7 +38,13 @@ const viewConfigSchema = z.object({
     field: z.string().min(1),
     order: z.enum(['asc', 'desc']),
   }).optional(),
-  charts: z.array(chartConfigSchema),
+  charts: z.array(chartConfigSchemaInput).transform(charts =>
+    charts.map((ch, i) => {
+      const trimmed = typeof ch.id === 'string' ? ch.id.trim() : ''
+      const id = trimmed.length > 0 ? trimmed : `chart_${i + 1}`
+      return { ...ch, id }
+    }),
+  ),
 }).loose()
 
 const componentConfigSchema = z.object({
@@ -154,22 +161,25 @@ function buildSchema(mode: 'create' | 'update', currentConfig?: AppConfig) {
       })
     }
 
+    // "count" is a reserved virtual field for aggregate charts (e.g. records per category)
+    const VIRTUAL_FIELDS = new Set(['count'])
+
     data.views?.charts?.forEach((ch, i) => {
-      if (!fieldNames.has(ch.xField)) {
+      if (!VIRTUAL_FIELDS.has(ch.xField) && !fieldNames.has(ch.xField)) {
         ctx.addIssue({
           code: 'custom',
           message: `xField「${ch.xField}」不是已定义的字段 name`,
           path: ['views', 'charts', i, 'xField'],
         })
       }
-      if (!fieldNames.has(ch.yField)) {
+      if (!VIRTUAL_FIELDS.has(ch.yField) && !fieldNames.has(ch.yField)) {
         ctx.addIssue({
           code: 'custom',
           message: `yField「${ch.yField}」不是已定义的字段 name`,
           path: ['views', 'charts', i, 'yField'],
         })
       }
-      if (ch.groupField && !fieldNames.has(ch.groupField)) {
+      if (ch.groupField && !VIRTUAL_FIELDS.has(ch.groupField) && !fieldNames.has(ch.groupField)) {
         ctx.addIssue({
           code: 'custom',
           message: `groupField「${ch.groupField}」不是已定义的字段 name`,

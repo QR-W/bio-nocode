@@ -291,7 +291,7 @@ ${DOMAIN_KNOWLEDGE[experimentType]}
 4. 数值字段在用户给出数值范围时设置 validation（min/max）；未提及时可省略或给宽松默认
 5. 有固定选项的字段使用 select 或 multiselect 类型，options 要完整
 6. tableColumns 以用户关心的可见列为准，通常 4~8 列，未强调时再做取舍
-7. charts：用户要趋势/对比时配置；用户明确不要图表时可置空数组
+7. charts：用户要趋势/对比时配置；用户明确不要图表时可置空数组。每项须含 id（英文唯一标识，如 chart_growth）、title、type（line|bar|scatter|pie）、xField、yField；可选 groupField。xField/yField 必须是 fields 中定义的字段 name，或特殊保留字 "count"（表示按 xField 分组后的记录条数，适用于频次分布、状态分布等聚合图表）
 
 你必须严格按照以下 JSON 格式返回，不要包含任何其他内容：
 {
